@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Monte Carlo Stock Forecast - WebAssembly</title>
+
+    <!-- Basic styles -->
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <!-- Small banner in top-right corner (fixed position) -->
+    <div id="banner">
+      <span id="ops-active">Ops: ???</span>
+      <br />
+      <button onclick="goToSelector()" style="margin-top: 0.5rem">
+        Regenerate CSV file
+      </button>
+    </div>
+
+    <!-- Main container that centers the table/content -->
+    <div class="container">
+      <h1>Monte Carlo Stock Price Forecast</h1>
+      <button onclick="startProcessingWithJS()">
+        Run Monte Carlo (JavaScript)
+      </button>
+      <button onclick="startProcessingWithWasm()">
+        Run Monte Carlo (WASM)
+      </button>
+
+      <p id="execution-type"></p>
+      <p id="total-operations">Total Operations:</p>
+      <p id="execution-time"></p>
+
+      <h2>Simulation Results:</h2>
+      <table id="comparison">
+        <tr>
+          <th>Ticker</th>
+          <th>Monte Carlo Mean</th>
+          <th>Actual Growth</th>
+          <th>Variance</th>
+        </tr>
+      </table>
+    </div>
+
+    <!-- Main JS file -->
+    <script type="module" src="script.js"></script>
+
+    <!-- Inline script to set banner text & define goToSelector function -->
+    <script>
+      function goToSelector() {
+        window.location.href = "/selector.html";
+      }
+
+      // After DOM loads, update the banner text
+      window.addEventListener("DOMContentLoaded", () => {
+        const operationsForBenchmark = localStorage.getItem(
+          "monte-carlo-benchmark"
+        );
+        if (!operationsForBenchmark) {
+          // If no benchmark ops, redirect user to selector
+          window.location.href = "/selector.html";
+        }
+
+        const opsElem = document.getElementById("ops-active");
+        if (operationsForBenchmark && opsElem) {
+          opsElem.textContent = `Ops: ${Number(operationsForBenchmark).toLocaleString()}`;
+        }
+      });
+    </script>
+  </body>
+</html>

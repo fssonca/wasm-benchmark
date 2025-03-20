@@ -1,0 +1,18 @@
+{
+  "name": "monte-carlo-wasm",
+  "type": "module",
+  "collaborators": [
+    "Your Name"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "monte_carlo_bg.wasm",
+    "monte_carlo.js",
+    "monte_carlo.d.ts"
+  ],
+  "main": "monte_carlo.js",
+  "types": "monte_carlo.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

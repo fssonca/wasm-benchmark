@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Generate CSV</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 0;
+        padding: 0;
+        background: #f4f4f4;
+      }
+      header {
+        background: #333;
+        color: #fff;
+        padding: 1rem;
+        text-align: center;
+      }
+      main {
+        max-width: 600px;
+        margin: 2rem auto;
+        background: #fff;
+        padding: 1.5rem;
+        box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+      }
+      label {
+        font-weight: bold;
+      }
+      select {
+        margin-left: 1rem;
+        font-size: 1rem;
+      }
+      button {
+        margin-top: 1rem;
+        padding: 0.5rem 1rem;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+      #ops-info {
+        margin-top: 1rem;
+        font-style: italic;
+      }
+      .hidden {
+        display: none;
+      }
+      .status-message {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        border: 1px solid #ccc;
+        background: #fafafa;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>CSV Generator</h1>
+    </header>
+    <main>
+      <p>Select a size (1 to 50):</p>
+
+      <label for="size-select">Size:</label>
+      <select id="size-select">
+        <option value="1">1 (250 million ops)</option>
+        <option value="2">2 (500 million ops)</option>
+        <option value="3">3 (750 million ops)</option>
+        <option value="4">4 (1 billion ops)</option>
+        <option value="5">5 (1.250 billion ops)</option>
+        <option value="10">10 (2.5 billion ops)</option>
+        <option value="20">20 (5 billion ops)</option>
+        <option value="30">30 (7.5 billion ops)</option>
+        <option value="40">40 (10 billion ops)</option>
+        <option value="50">50 (12.5 billion ops)</option>
+      </select>
+
+      <p id="ops-info" class="hidden"></p>
+
+      <button id="generate-btn">Generate CSV</button>
+
+      <div id="status" class="status-message hidden"></div>
+    </main>
+
+    <script>
+      const sizeSelect = document.getElementById("size-select");
+      const opsInfo = document.getElementById("ops-info");
+      const statusDiv = document.getElementById("status");
+      const generateBtn = document.getElementById("generate-btn");
+
+      // Show approximate operations as user changes the selection
+      function updateApproxOps() {
+        const size = parseInt(sizeSelect.value, 10);
+        const approxOps = size * 250_000_000;
+        opsInfo.textContent = `You selected size=${size}, which is approximately ${approxOps.toLocaleString()} operations.`;
+        opsInfo.classList.remove("hidden");
+      }
+
+      sizeSelect.addEventListener("change", updateApproxOps);
+
+      async function generateCSV() {
+        try {
+          statusDiv.classList.remove("hidden");
+          statusDiv.textContent = "Generating CSV, please wait...";
+
+          const size = parseInt(sizeSelect.value, 10);
+          const response = await fetch(`/generateData?size=${size}`);
+
+          if (!response.ok) {
+            throw new Error(`Request failed with status ${response.status}`);
+          }
+
+          const data = await response.json();
+          if (!data.success) {
+            throw new Error(data.error || "Generation failed.");
+          }
+
+          // define a variable that will inform that a csv file was generated and will store the number of ops
+          localStorage.setItem("monte-carlo-benchmark", data.approximateOps);
+
+          // Show the returned info
+          statusDiv.textContent =
+            `✅ CSV generated! ` +
+            `Rows Created: ${data.rowsCreated}; ` +
+            `Days Created: ${data.daysCreated}; ` +
+            `Approx. Operations: ${
+              data.approximateOps?.toLocaleString() || "N/A"
+            }`;
+
+          // Redirect to home after a brief delay
+          setTimeout(() => {
+            window.location.href = "/";
+          }, 1000);
+        } catch (err) {
+          statusDiv.textContent = `❌ Error: ${err.message}`;
+        }
+      }
+
+      generateBtn.addEventListener("click", generateCSV);
+
+      // Initialize the approximate ops display on load
+      updateApproxOps();
+    </script>
+  </body>
+</html>

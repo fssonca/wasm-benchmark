@@ -1,0 +1,28 @@
+# Node modules & logs
+node_modules/
+data/
+npm-debug.log
+yarn-error.log
+pnpm-lock.yaml
+
+# Environment variables
+.env
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Build output folders (if using a bundler or custom build scripts)
+dist/
+build/
+
+# Coverage reports
+coverage/
+
+# Logs
+*.log
+logs/
+
+# Rust/WASM build artifacts in src/wasm
+src/wasm/target/
+src/wasm/pkg/

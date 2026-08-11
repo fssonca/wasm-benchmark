@@ -1,5 +1,6 @@
 /* tslint:disable */
 /* eslint-disable */
+export function monte_carlo_simulation_array_seeded_gaussian(ticker: string, initial_price: number, simulations: number, days_in_csv: number, drift: number, volatility: number, seed: bigint): any;
 export function monte_carlo_simulation_array(ticker: string, initial_price: number, simulations: number, days_in_csv: number, drift: number, volatility: number): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -7,6 +8,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly monte_carlo_simulation_array: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => any;
+  readonly monte_carlo_simulation_array_seeded_gaussian: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: bigint) => any;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;

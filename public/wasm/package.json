@@ -2,9 +2,15 @@
   "name": "monte-carlo-wasm",
   "type": "module",
   "collaborators": [
-    "Your Name"
+    "Fernando Sousa <fssonca@gmail.com>"
   ],
+  "description": "Seeded Monte Carlo stock-price simulation compiled to WebAssembly",
   "version": "0.1.0",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fssonca/wasm-benchmark"
+  },
   "files": [
     "monte_carlo_bg.wasm",
     "monte_carlo.js",

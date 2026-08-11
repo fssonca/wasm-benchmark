@@ -154,6 +154,23 @@ function getStringFromWasm0(ptr, len) {
  * @param {number} days_in_csv
  * @param {number} drift
  * @param {number} volatility
+ * @param {bigint} seed
+ * @returns {any}
+ */
+export function monte_carlo_simulation_array_seeded_gaussian(ticker, initial_price, simulations, days_in_csv, drift, volatility, seed) {
+    const ptr0 = passStringToWasm0(ticker, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.monte_carlo_simulation_array_seeded_gaussian(ptr0, len0, initial_price, simulations, days_in_csv, drift, volatility, seed);
+    return ret;
+}
+
+/**
+ * @param {string} ticker
+ * @param {number} initial_price
+ * @param {number} simulations
+ * @param {number} days_in_csv
+ * @param {number} drift
+ * @param {number} volatility
  * @returns {any}
  */
 export function monte_carlo_simulation_array(ticker, initial_price, simulations, days_in_csv, drift, volatility) {
@@ -197,15 +214,8 @@ async function __wbg_load(module, imports) {
 function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
-    imports.wbg.__wbg_log_c222819a41e063d3 = function(arg0) {
-        console.log(arg0);
-    };
     imports.wbg.__wbg_new_405e22f390576ce2 = function() {
         const ret = new Object();
-        return ret;
-    };
-    imports.wbg.__wbg_random_3ad904d98382defe = function() {
-        const ret = Math.random();
         return ret;
     };
     imports.wbg.__wbg_set_3fda3bac07393de4 = function(arg0, arg1, arg2) {

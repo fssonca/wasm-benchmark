@@ -1,8 +1,11 @@
 [package]
 name = "monte-carlo-wasm"
 version = "0.1.0"
-authors = ["Your Name"]
+authors = ["Fernando Sousa <fssonca@gmail.com>"]
 edition = "2021"
+description = "Seeded Monte Carlo stock-price simulation compiled to WebAssembly"
+repository = "https://github.com/fssonca/wasm-benchmark"
+license = "MIT"
 
 [lib]
 name = "monte_carlo"
@@ -13,11 +16,7 @@ crate-type = ["cdylib"]
 wasm-bindgen = { version = "0.2", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde-wasm-bindgen = "0.4"
-rand = { version = "0.8", default-features = false, features = ["small_rng"] }  
-rand_distr = "0.4"
-getrandom = { version = "0.2", features = ["js"] }
-js-sys = "0.3"  # ✅ Add this for JavaScript interop
 
-[dependencies.web-sys]
-version = "0.3"
-features = ["console"]
+[profile.release]
+opt-level = 3
+lto = true

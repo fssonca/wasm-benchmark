@@ -8,6 +8,7 @@ const FIXED_STOCKS = 100;
 const OPS_PER_SIZE_UNIT = 250_000_000;
 
 const OPS_PER_ROW = 10000;
+const MAX_SIZE = 50;
 
 // Geometric Brownian motion parameters
 const ANNUAL_DRIFT = 0.08; // 8% per year
@@ -16,33 +17,58 @@ const TRADING_DAYS_PER_YEAR = 252;
 const DAILY_DRIFT = ANNUAL_DRIFT / TRADING_DAYS_PER_YEAR;
 const DAILY_VOL = ANNUAL_VOL / Math.sqrt(TRADING_DAYS_PER_YEAR);
 
+function normalizeBenchmarkSize(rawSize, maxSize = MAX_SIZE) {
+  let size = Number(rawSize);
+  if (!Number.isFinite(size)) size = 1;
+  size = Math.floor(size);
+  if (size < 1) size = 1;
+  if (size > maxSize) size = maxSize;
+  return size;
+}
+
+function calculateBenchmarkTargets(rawSize, options = {}) {
+  const fixedStocks = options.fixedStocks ?? FIXED_STOCKS;
+  const opsPerSizeUnit = options.opsPerSizeUnit ?? OPS_PER_SIZE_UNIT;
+  const opsPerRow = options.opsPerRow ?? OPS_PER_ROW;
+  const maxSize = options.maxSize ?? MAX_SIZE;
+
+  const size = normalizeBenchmarkSize(rawSize, maxSize);
+  const desiredOps = size * opsPerSizeUnit;
+  let desiredRows = Math.floor(desiredOps / opsPerRow);
+  if (desiredRows < 1) desiredRows = 1;
+
+  let finalDays = Math.floor(desiredRows / fixedStocks);
+  if (finalDays < 1) finalDays = 1;
+
+  const finalRows = finalDays * fixedStocks;
+  const finalOps = finalRows * opsPerRow;
+
+  return {
+    size,
+    fixedStocks,
+    opsPerSizeUnit,
+    opsPerRow,
+    finalDays,
+    finalRows,
+    finalOps,
+  };
+}
+
 /**
  * Generates synthetic stock market data (GBM) and writes to a CSV.
  *
  * @param {string} filePath - Output path for CSV, e.g. "./data/stock_data.csv"
- * @param {number} size - integer in [1..50], each increment => ~239.6e6 ops
+ * @param {number} size - integer in [1..50], each increment => ~250e6 ops
+ * @param {object} options - generation/debug options
  * @returns {Promise<{ finalRows: number, finalOps: number, finalDays: number }>}
  */
-async function generateStockData(filePath, size) {
-  // Ensure size is 1..50
-  if (size < 1) size = 1;
-  if (size > 50) size = 50;
-
-  // 1) Total desired ops
-  const desiredOps = size * OPS_PER_SIZE_UNIT;
-
-  // 2) Convert desired ops -> desired rows
-  let desiredRows = Math.floor(desiredOps / OPS_PER_ROW);
-
-  if (desiredRows < 1) desiredRows = 1;
-
-  // 3) finalDays = desiredRows / 100 (we have FIXED_STOCKS=100)
-  let finalDays = Math.floor(desiredRows / FIXED_STOCKS);
-  if (finalDays < 1) finalDays = 1;
-
-  // 4) final row count & approximate ops
-  const finalRows = finalDays * FIXED_STOCKS;
-  const finalOps = finalRows * OPS_PER_ROW;
+async function generateStockData(filePath, size, options = {}) {
+  const debug = Boolean(options.debug);
+  const logger = options.logger || console;
+  const chunkSize = options.chunkSize ?? 10_000;
+  const generationStart = Date.now();
+  const targets = calculateBenchmarkTargets(size, options);
+  const { finalDays, finalRows, finalOps, fixedStocks } = targets;
 
   // OPTIONAL: clamp finalDays if you don't want extremely large day counts
   // const MAX_DAYS = 1260; // e.g., 5 years
@@ -74,13 +100,13 @@ async function generateStockData(filePath, size) {
 
   // Build tickers, e.g. STK000..STK099
   const tickers = [];
-  for (let i = 0; i < FIXED_STOCKS; i++) {
+  for (let i = 0; i < fixedStocks; i++) {
     tickers.push(`STK${String(i).padStart(3, "0")}`);
   }
 
   // We'll buffer lines before writing
   const lines = [];
-  const CHUNK_SIZE = 10_000;
+  let flushCount = 0;
 
   // Box–Muller transform for random Normal(0,1)
   function randStdNormal() {
@@ -137,31 +163,47 @@ async function generateStockData(filePath, size) {
 
       lines.push(line + "\n");
 
-      if (lines.length >= CHUNK_SIZE) {
+      if (lines.length >= chunkSize) {
         fs.appendFileSync(filePath, lines.join(""));
         lines.length = 0;
+        flushCount++;
       }
+    }
+
+    if (debug) {
+      logger.log(
+        `[generateStockData] ticker=${ticker} generated (${finalDays} days)`
+      );
     }
   }
 
   // Flush leftover lines
   if (lines.length > 0) {
     fs.appendFileSync(filePath, lines.join(""));
+    flushCount++;
   }
 
   // Log file size
   const stats = fs.statSync(filePath);
   const fileSizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+  const durationMs = Date.now() - generationStart;
 
-  console.log(`Generated CSV => ${filePath}`);
-  console.log(` - finalDays = ${finalDays}`);
-  console.log(` - finalRows = ${finalRows}`);
-  console.log(` - approximate ops = ${finalOps.toLocaleString()}`);
-  console.log(` - file size ~ ${fileSizeMB} MB`);
+  logger.log(`Generated CSV => ${filePath}`);
+  logger.log(` - finalDays = ${finalDays}`);
+  logger.log(` - finalRows = ${finalRows}`);
+  logger.log(` - approximate ops = ${finalOps.toLocaleString()}`);
+  logger.log(` - file size ~ ${fileSizeMB} MB`);
+  if (debug) {
+    logger.log(
+      `[generateStockData] completed in ${durationMs}ms with ${flushCount} flushes`
+    );
+  }
 
   return { finalRows, finalOps, finalDays };
 }
 
 module.exports = {
+  calculateBenchmarkTargets,
   generateStockData,
+  normalizeBenchmarkSize,
 };

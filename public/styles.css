@@ -40,6 +40,19 @@ h2 {
   margin: 20px 0 10px;
 }
 
+.rng-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.rng-controls input[type="number"] {
+  width: 8rem;
+  margin-left: 0.4rem;
+}
+
 /* Buttons */
 button {
   padding: 10px 20px;

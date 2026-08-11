@@ -21,6 +21,16 @@
     <!-- Main container that centers the table/content -->
     <div class="container">
       <h1>Monte Carlo Stock Price Forecast</h1>
+      <div class="rng-controls">
+        <label>
+          <input id="deterministic-rng" type="checkbox" checked />
+          Deterministic RNG
+        </label>
+        <label>
+          Seed:
+          <input id="rng-seed" type="number" value="12345" />
+        </label>
+      </div>
       <button onclick="startProcessingWithJS()">
         Run Monte Carlo (JavaScript)
       </button>
@@ -31,13 +41,14 @@
       <p id="execution-type"></p>
       <p id="total-operations">Total Operations:</p>
       <p id="execution-time"></p>
+      <p id="execution-breakdown"></p>
 
       <h2>Simulation Results:</h2>
       <table id="comparison">
         <tr>
           <th>Ticker</th>
           <th>Monte Carlo Mean</th>
-          <th>Actual Growth</th>
+          <th>Realized Growth (%)</th>
           <th>Variance</th>
         </tr>
       </table>

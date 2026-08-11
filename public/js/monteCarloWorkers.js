@@ -1,60 +1,80 @@
-export function processWithWorkers(stockData, simulations, drift, volatility) {
+import { buildTickerSeed } from "./seedUtils.js";
+
+export function processWithWorkers({
+  tickerInputs,
+  simulations,
+  drift,
+  volatility,
+  deterministicMode,
+  seedBase,
+}) {
   return new Promise((resolve) => {
     const results = [];
     let completedWorkers = 0;
-    let totalOperations = 0;
-    const startTime = performance.now();
+    const simulateStart = performance.now();
 
-    // All unique tickers
-    const uniqueTickers = [...new Set(stockData.map((stock) => stock.ticker))];
-    if (uniqueTickers.length === 0) {
+    if (!Array.isArray(tickerInputs) || tickerInputs.length === 0) {
       console.error("❌ No valid tickers found!");
-      resolve([]);
+      resolve({
+        results: [],
+        totalOperations: 0,
+        timing: { simulateMs: 0 },
+      });
       return;
     }
+
+    const totalOperations = tickerInputs.reduce(
+      (total, item) => total + item.daysInCSV * simulations,
+      0
+    );
 
     const MAX_CONCURRENT_WORKERS = 10;
     let currentWorkerIndex = 0;
     let activeWorkers = 0;
 
     function startNextWorker() {
-      if (currentWorkerIndex >= uniqueTickers.length) return;
+      if (currentWorkerIndex >= tickerInputs.length) return;
+      if (activeWorkers >= MAX_CONCURRENT_WORKERS) return;
 
-      const ticker = uniqueTickers[currentWorkerIndex];
-      // IMPORTANT: gather all rows for this ticker
-      const tickerData = stockData.filter((s) => s.ticker === ticker);
-
-      if (!tickerData || tickerData.length === 0) {
-        console.warn(`⚠️ No valid rows for ${ticker}`);
-        checkCompletion();
-        return;
-      }
-
-      // We create a worker
+      const tickerIndex = currentWorkerIndex;
+      const item = tickerInputs[tickerIndex];
+      const { ticker, initialPrice, daysInCSV } = item;
       const worker = new Worker("js/monteCarlo/monteCarloWorker.js");
       activeWorkers++;
 
-      // Post the entire tickerData array, plus drift & volatility
       worker.postMessage({
-        tickerData,
+        ticker,
+        initialPrice,
+        daysInCSV,
         simulations,
         drift: drift[ticker] || 0,
         volatility: volatility[ticker] || 0.02,
+        seed: deterministicMode
+          ? buildTickerSeed(seedBase, ticker, tickerIndex)
+          : null,
       });
 
       worker.onmessage = function (event) {
         const data = event.data;
-        if (!data) {
-          console.warn(`⚠️ Worker returned no data for ${ticker}`);
-        } else {
+        if (data && data.ticker) {
           results.push(data);
-
-          // IMPORTANT: #ops = #days * #simulations
-          totalOperations += tickerData.length * simulations;
+        } else {
+          console.warn(`⚠️ Worker returned no data for ${ticker}`);
         }
+
         worker.terminate();
         activeWorkers--;
-        checkCompletion();
+        completedWorkers++;
+
+        if (completedWorkers === tickerInputs.length) {
+          resolve({
+            results,
+            totalOperations,
+            timing: { simulateMs: performance.now() - simulateStart },
+          });
+          return;
+        }
+
         startNextWorker();
       };
 
@@ -62,32 +82,23 @@ export function processWithWorkers(stockData, simulations, drift, volatility) {
         console.error(`❌ Worker error for ${ticker}:`, error);
         worker.terminate();
         activeWorkers--;
-        checkCompletion();
+        completedWorkers++;
+
+        if (completedWorkers === tickerInputs.length) {
+          resolve({
+            results,
+            totalOperations,
+            timing: { simulateMs: performance.now() - simulateStart },
+          });
+          return;
+        }
+
         startNextWorker();
       };
 
       currentWorkerIndex++;
     }
 
-    function checkCompletion() {
-      completedWorkers++;
-      if (completedWorkers === uniqueTickers.length) {
-        const endTime = performance.now();
-        document.getElementById(
-          "execution-time"
-        ).innerText = `Execution Time: ${(endTime - startTime).toFixed(2)} ms`;
-        document.getElementById(
-          "total-operations"
-        ).innerText = `Total Operations: ${totalOperations.toLocaleString()}`;
-
-        console.log(
-          `✅ All workers completed. Processed ${results.length} tickers. Total operations: ${totalOperations}`
-        );
-        resolve(results);
-      }
-    }
-
-    // Kick off up to 10 workers
     for (let i = 0; i < MAX_CONCURRENT_WORKERS; i++) {
       startNextWorker();
     }

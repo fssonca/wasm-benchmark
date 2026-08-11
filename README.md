@@ -1,78 +1,90 @@
-# Monte Carlo Stock Forecast with WASM and JS
+# Monte Carlo Stock Forecast — Rust/WASM vs JavaScript
 
-This project demonstrates a **Monte Carlo simulation** for stock price forecasting, implemented both in **pure JavaScript** (Web Workers) and **WebAssembly (Rust)**. It’s designed to serve as a **benchmark** for CPU-intensive tasks in the browser.
+A browser benchmark that runs the same seeded Monte Carlo stock-price simulation (geometric Brownian motion) in **pure JavaScript Web Workers** and in **Rust compiled to WebAssembly**, on identical inputs, and compares the results and the run time.
 
-## Why Monte Carlo is a Great Benchmark
+Both engines implement the same deterministic kernel — xorshift32 uniform RNG + Box-Muller gaussian sampling — so with the same seed they produce **bit-identical statistics**, which makes the timing comparison meaningful: same math, same numbers, different runtime.
 
-- **CPU-Intensive**: Monte Carlo simulations require a large number of repetitive calculations – perfect for testing raw computational performance.  
-- **Parallelizable**: Running multiple workers (or threads in WASM) can showcase concurrency and performance in the browser.  
-- **Realistic**: Many financial and scientific scenarios use Monte Carlo methods to estimate outcomes under uncertainty, making this a representative test of heavy numeric workloads in JavaScript or WebAssembly.
+## Results
 
-## Overview
+Single-thread kernel, measured with the reproducible harness in [`scripts/benchmark-node.mjs`](scripts/benchmark-node.mjs):
 
-1. **Server (Node + Express)**  
-   - Serves static files from `public/`.
-   - Offers an endpoint `/generateData?size=X` to generate a large synthetic CSV file (`data/stock_data.csv`) for simulation.
-   - Uses `generateStockData.js` for creating random stock market data via a geometric Brownian motion model.
+| Implementation  | Median (ms) | Mean (ms) | Msteps/s | Relative |
+| --------------- | ----------: | --------: | -------: | -------: |
+| JavaScript (V8) |      1262.0 |    1278.4 |     39.9 |    1.00× |
+| Rust/WASM       |       608.1 |     610.6 |     82.9 |    2.08× |
 
-2. **Client (HTML + JS + WASM)**  
-   - **`selector.html`**: Lets you pick a “size” (1..50). Each size translates to a target number of operations (e.g., 1 => 250 million ops).  
-   - After generating the CSV, the user is redirected to the main **`index.html`**.  
-   - **`index.html`**: Presents two buttons:
-     - **Run Monte Carlo (JavaScript)**  
-       Uses multiple **JS Web Workers** (`monteCarloWorker.js`) to process the CSV.  
-     - **Run Monte Carlo (WASM)**  
-       Spawns **WebAssembly workers** for the same calculations.  
-   - Both approaches parse and process the same CSV data, each performing heavy computations.  
+**Workload:** 200,000 simulated price paths × 252 trading days = 50.4M simulation steps per run.
+**Environment:** Apple M4, Node.js 24 (V8), `wasm-pack --release` with LTO, `opt-level = 3`.
+**Protocol:** 2 warm-up runs, 7 timed runs, median reported. The harness first verifies that both kernels return the same mean/variance for the same seed (relative delta 0.0 in this run) and aborts if they diverge.
 
-3. **Monte Carlo Method**  
-   - Monte Carlo simulations repeatedly sample from random processes to model the uncertainty in stock prices over time.  
-   - Here, it’s used to forecast final stock prices after `N` days, given a drift (mean return) and volatility.  
-   - In practice, it's computationally **expensive** to run thousands of simulations on thousands of rows, making it an excellent **benchmark** for testing performance in JavaScript vs. WebAssembly.
+Reproduce it:
 
-## Requirements
+```bash
+npm run build:wasm   # requires Rust + wasm-pack
+node scripts/benchmark-node.mjs
+node scripts/benchmark-node.mjs --simulations 500000 --days 252 --runs 10
+```
 
-- **Node.js** (v14+ recommended)
-- **npm** or **yarn**
+The harness executes the *actual* worker source (`src/js/monteCarlo/monteCarloWorker.js`) under a minimal `self` shim and the *committed* web-target WASM artifacts via `initSync` — what is measured is what the browser executes. The in-browser app additionally measures the multi-worker orchestration path (up to 10 concurrent workers of each kind).
 
-## Installation
+## Why Monte Carlo as a benchmark
 
-1. Clone this repository:
-   ```bash
-   git clone https://github.com/your-org/monte-carlo-wasm.git
-   cd monte-carlo-wasm
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-   or
-   ```bash
-   yarn install
-   ```
+- **CPU-bound:** millions of RNG draws, `log`/`exp`/`sqrt`/`sin`/`cos` calls, and floating-point accumulation — no I/O to hide behind.
+- **Parallelizable:** each ticker simulates independently, so both engines run in a pool of up to 10 workers.
+- **Realistic:** GBM Monte Carlo is how real risk/pricing systems estimate outcome distributions.
 
-## Usage
+## How it works
 
-1. **Start the server**:
-   ```bash
-   npm start
-   ```
-   This launches an Express server on `http://localhost:3000`.
+```text
+selector.html      → choose a workload size (1–50 ⇒ up to billions of steps)
+   │  GET /generateData?size=N
+server.js          → generates data/stock_data.csv (synthetic GBM market data)
+   │
+index.html         → loads the CSV, computes per-ticker drift/volatility
+   ├── "Run Monte Carlo (JavaScript)" → pool of classic Web Workers
+   │        js/monteCarlo/monteCarloWorker.js   (xorshift32 + Box-Muller in JS)
+   └── "Run Monte Carlo (WASM)"       → pool of module Web Workers
+            wasm/wasmWorker.js → monte_carlo_bg.wasm (same kernel in Rust)
+```
 
-2. **Open your browser** at [http://localhost:3000](http://localhost:3000).
+- **Deterministic mode** seeds every ticker with `FNV-1a(ticker) ⊕ seedBase ⊕ index`, so JS and WASM runs are directly comparable and re-runnable.
+- Per-run timing separates **data load**, **simulation**, and **total**, so worker startup and WASM instantiation costs are visible rather than hidden in one number.
 
-3. **Redirection to Selector**:  
-   - On first visit, you’ll be redirected to **`/selector.html`**.  
-   - Choose a *size* from **1..50**, then click “Generate CSV.”  
-   - The server will create a large CSV file (`data/stock_data.csv`) with synthetic stock data.  
-   - After generation, you’ll be redirected to the **homepage** (`index.html`).
+## Run the app
 
-4. **Run a Monte Carlo Simulation**:  
-   - On **index.html**, click the “Run Monte Carlo (JavaScript)” or “Run Monte Carlo (WASM)” buttons to start the simulation.  
-   - The program spawns multiple workers, processes the CSV row by row, and calculates final prices using a random log-return model.  
-   - Results (mean price, variance) will appear in the “Simulation Results” table, along with the approximate execution time and total operations count.
+```bash
+npm install
+npm start          # http://localhost:3000
+```
 
-----
+Pick a size on the selector page (size 1 ≈ 250M steps), then run each engine on the same generated dataset.
 
-Thanks!
-https://www.linkedin.com/in/fssonca/
+Rebuild the WASM module after editing the Rust source:
+
+```bash
+npm run build:wasm   # wasm-pack build src/wasm --release --target web
+```
+
+## Tests
+
+```bash
+npm test             # node:test — CSV generation, stats, clamp/seed logic
+```
+
+## Project layout
+
+```text
+server.js                        Express server + synthetic CSV generation
+public/                          Static app (selector, comparison UI, charts)
+public/wasm/                     Committed wasm-pack build artifacts
+src/js/monteCarlo/               JS worker kernel
+src/wasm/monte_carlo.rs          Rust kernel (same RNG + Box-Muller)
+scripts/benchmark-node.mjs       Reproducible headless benchmark harness
+tests/                           node:test suites
+```
+
+## Limitations
+
+- The headless harness measures the single-thread kernel; browser numbers additionally include worker orchestration and message passing.
+- `Msteps/s` counts simulation steps (one day of one path), not FLOPs.
+- Results vary by machine and engine version — run the harness yourself; the protocol is in the script.
